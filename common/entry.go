@@ -13,7 +13,7 @@ import (
 
 type Entry struct {
 	Version     uint8  // 1
-	ChainID     Hash   // 32
+	ChainID    *Hash   // 32
 	ExIDSize    uint16 // 2
 	PayloadSize uint16 // 2 Total of 37 bytes
 	ExtIDs      [][]byte
@@ -29,14 +29,8 @@ func (e *Entry) MarshalBinary() ([]byte, error) {
 	binary.Write(&buf, binary.BigEndian, e.Version)
 
 	// Write ChainID
-	{
-		data, err := e.ChainID.MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(data)
-	}
-
+    buf.Write(e.ChainID.Bytes)
+	
 	// First compute the ExIDSize (just in case someone edited the ExtIDs
 	var exIDSize uint16
 
@@ -68,32 +62,15 @@ func (e *Entry) MarshalBinary() ([]byte, error) {
 	buf.Write(e.Data)
 
 	return buf.Bytes(), nil
-
-	data, err := e.ChainID.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = buf.Write(data)
-	if err != nil {
-		return nil, err
-	}
-
-	buf.Write(e.Data)
-
-	return buf.Bytes(), nil
 }
 
 func (e *Entry) UnmarshalBinary(data []byte) (err error) {
 	// Get the Version byte
 	e.Version, data = data[0], data[1:]
 	// Get the ChainID
-	err = e.ChainID.UnmarshalBinary(data[:HASH_LENGTH])
-	if err != nil {
-		return err
-	}
+	e.ChainID, data = UnmarshalHash(data)
 	// Get the External ID Size
-	e.ExIDSize, data = binary.BigEndian.Uint16(data[0:2]), data[2:]
+	e.ExIDSize,    data = binary.BigEndian.Uint16(data[0:2]), data[2:]
 	e.PayloadSize, data = binary.BigEndian.Uint16(data[0:2]), data[2:]
 
 	if len(data) > 10240 || uint16(len(data)) != e.PayloadSize+37 {
@@ -114,6 +91,7 @@ func (e *Entry) UnmarshalBinary(data []byte) (err error) {
 		datas = datas[eid_len:]
 	} // we only get out of this nice when size == e.ExIDSize.
 	// Otherwise we get an error.
+	
 	e.ExtIDs = make([][]byte, cnt, cnt)
 	for i := uint16(0); i < cnt; i++ {
 		eid_len, data := binary.BigEndian.Uint16(data[0:2]), data[2:]

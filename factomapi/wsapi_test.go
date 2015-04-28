@@ -66,7 +66,7 @@ func TestAddChain(t *testing.T) {
 	bName = append(bName, []byte("bookkeeping5"))
 
 	chain.Name = bName
-	chain.GenerateIDFromName()
+	chain.ChainID,_ = common.GetChainID(chain.Name)
 
 	entry := new(common.Entry)
 	entry.ChainID = *chain.ChainID
@@ -102,10 +102,11 @@ func TestAddChain(t *testing.T) {
 	}
 
 	// JSON ws test done ----------------------------------------------------------------------------
-
 	chain3 := new(common.EChain)
 	reader := gocoding.ReadBytes([]byte(jsonstr))
+
 	err = SafeUnmarshal(reader, chain3)
+fmt.Println("HERE!")
 
 	fmt.Println("chainid:%v", hex.EncodeToString(chain3.ChainID.Bytes))
 	fmt.Println("name0:%v", string(chain3.Name[0]))
@@ -126,7 +127,7 @@ func TestAddEntry(t *testing.T) {
 	bName = append(bName, []byte("bookkeeping5"))
 
 	chain.Name = bName
-	chain.GenerateIDFromName()
+	chain.ChainID,_ = common.GetChainID(chain.Name)
 
 	entry := new(common.Entry)
 	entry.ChainID = *chain.ChainID
@@ -181,7 +182,7 @@ func TestAddEntry2(t *testing.T) {
 	bName = append(bName, []byte("bookkeeping4"))
 
 	chain.Name = bName
-	chain.GenerateIDFromName()
+	chain.ChainID,_ = common.GetChainID(chain.Name)
 
 	entry := new(common.Entry)
 	entry.ChainID = *chain.ChainID

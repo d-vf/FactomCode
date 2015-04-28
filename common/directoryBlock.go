@@ -130,33 +130,16 @@ func (e *DBEntry) EncodableFields() map[string]reflect.Value {
 func (e *DBEntry) MarshalBinary() (data []byte, err error) {
 	var buf bytes.Buffer
 
-	data, err = e.ChainID.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
-
-	data, err = e.MerkleRoot.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
+	buf.Write(e.ChainID.Bytes)
+	buf.Write(e.MerkleRoot.Bytes)
 
 	return buf.Bytes(), nil
 }
 
 func (e *DBEntry) UnmarshalBinary(data []byte) (err error) {
-	e.ChainID = new(Hash)
-	err = e.ChainID.UnmarshalBinary(data[:33])
-	if err != nil {
-		return
-	}
 
-	e.MerkleRoot = new(Hash)
-	err = e.MerkleRoot.UnmarshalBinary(data[33:])
-	if err != nil {
-		return
-	}
+    e.ChainID,    data = UnmarshalHash(data)
+	e.MerkleRoot, data = UnmarshalHash(data)
 
 	return nil
 }
@@ -182,42 +165,24 @@ func (b *DBlockHeader) MarshalBinary() (data []byte, err error) {
 	buf.Write([]byte{b.Version})
 	binary.Write(&buf, binary.BigEndian, b.NetworkID)
 
-	data, err = b.BodyMR.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
-
-	data, err = b.PrevKeyMR.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
-
-	data, err = b.PrevBlockHash.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
+	buf.Write(b.BodyMR.Bytes)
+	buf.Write(b.PrevKeyMR.Bytes)
+	buf.Write(b.PrevBlockHash.Bytes)
 
 	binary.Write(&buf, binary.BigEndian, b.BlockHeight)
-
-	binary.Write(&buf, binary.BigEndian, b.StartTime)
-
 	binary.Write(&buf, binary.BigEndian, b.EntryCount)
 
 	return buf.Bytes(), err
 }
 
-func (b *DBlockHeader) MarshalledSize() uint64 {
-	var size uint64 = 0
+func (b *DBlockHeader) MarshalledSize() int {
+	var size int = 0
 	size += 1
 	size += 4
-	size += b.BodyMR.MarshalledSize()
-	size += b.PrevKeyMR.MarshalledSize()
-	size += b.PrevBlockHash.MarshalledSize()
+	size += HASH_LENGTH
+	size += HASH_LENGTH
+	size += HASH_LENGTH
 	size += 4 //db height
-	size += 8 //start time
 	size += 4
 
 	return size
@@ -229,22 +194,12 @@ func (b *DBlockHeader) UnmarshalBinary(data []byte) (err error) {
 
 	b.NetworkID, data = binary.BigEndian.Uint32(data[0:4]), data[4:]
 
-	b.BodyMR = new(Hash)
-	b.BodyMR.UnmarshalBinary(data)
-	data = data[b.BodyMR.MarshalledSize():]
-
-	b.PrevKeyMR = new(Hash)
-	b.PrevKeyMR.UnmarshalBinary(data)
-	data = data[b.PrevKeyMR.MarshalledSize():]
-
-	b.PrevBlockHash = new(Hash)
-	b.PrevBlockHash.UnmarshalBinary(data)
-	data = data[b.PrevBlockHash.MarshalledSize():]
+	b.BodyMR,        data = UnmarshalHash(data)
+	b.PrevKeyMR,     data = UnmarshalHash(data)
+	b.PrevBlockHash, data = UnmarshalHash(data)
 
 	b.BlockHeight, data = binary.BigEndian.Uint32(data[0:4]), data[4:]
-
 	b.StartTime, data = binary.BigEndian.Uint64(data[0:8]), data[8:]
-
 	b.EntryCount, data = binary.BigEndian.Uint32(data[0:4]), data[4:]
 
 	return nil
@@ -440,67 +395,16 @@ func (b *DirectoryBlock) EncodableFields() map[string]reflect.Value {
 func (b *DBInfo) MarshalBinary() (data []byte, err error) {
 	var buf bytes.Buffer
 
-	data, err = b.DBHash.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
-
-	data, err = b.BTCTxHash.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
+	buf.Write(b.DBHash.Bytes)
+	buf.Write(b.BTCTxHash.Bytes)
 
 	binary.Write(&buf, binary.BigEndian, b.BTCTxOffset)
 	binary.Write(&buf, binary.BigEndian, b.BTCBlockHeight)
-
-	data, err = b.BTCBlockHash.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
-
-	data, err = b.DBMerkleRoot.MarshalBinary()
-	if err != nil {
-		return
-	}
-	buf.Write(data)
+    
+	buf.Write(b.BTCBlockHash.Bytes)
+	buf.Write(b.DBMerkleRoot.Bytes)
 
 	return buf.Bytes(), err
 }
 
-func (b *DBInfo) MarshalledSize() uint64 {
-	var size uint64 = 0
-	size += 33 //DBHash
-	size += 33 //BTCTxHash
-	size += 4  //BTCTxOffset
-	size += 4  //BTCBlockHeight
-	size += 33 //BTCBlockHash
-	size += 33 //DBMerkleRoot
 
-	return size
-}
-
-func (b *DBInfo) UnmarshalBinary(data []byte) (err error) {
-	b.DBHash = new(Hash)
-	b.DBHash.UnmarshalBinary(data[:33])
-
-	b.BTCTxHash = new(Hash)
-	b.BTCTxHash.UnmarshalBinary(data[:33])
-	data = data[33:]
-
-	b.BTCTxOffset = int(binary.BigEndian.Uint32(data[:4]))
-	data = data[4:]
-
-	b.BTCBlockHeight = int32(binary.BigEndian.Uint32(data[:4]))
-	data = data[4:]
-
-	b.BTCBlockHash = new(Hash)
-	b.BTCBlockHash.UnmarshalBinary(data[:33])
-
-	b.DBMerkleRoot = new(Hash)
-	b.DBMerkleRoot.UnmarshalBinary(data[:33])
-
-	return nil
-}

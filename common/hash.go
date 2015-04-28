@@ -8,17 +8,14 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
-	"reflect"
-
-	"github.com/FactomProject/gocoding"
+	
 )
 
 type Hash struct {
 	Bytes []byte `json:"bytes"`
 }
 
-//Fixed sixe hash used for map, where byte slice wont work
+//Fixed sixe hash used for map, where byte slice won't work
 type HashF [HASH_LENGTH]byte
 
 func (h HashF) Hash() Hash {
@@ -49,72 +46,44 @@ func CreateHash(entities ...BinaryMarshallable) (h *Hash, err error) {
 	return
 }
 
-func (h *Hash) MarshalBinary() ([]byte, error) {
-	var buf bytes.Buffer
-	buf.Write([]byte{byte(len(h.Bytes))})
-	buf.Write(h.Bytes)
-	return buf.Bytes(), nil
+func (h *Hash) MarshalBinary() (bytes [] byte, err error) {
+    bytes = make([]byte,HASH_LENGTH,HASH_LENGTH)
+    copy(bytes,h.Bytes)
+    return bytes, nil
 }
 
-func (h *Hash) MarshalledSize() uint64 {
-	return uint64(len(h.Bytes)) + 1
+func (h *Hash) UnMarshalBinary(data []byte) (hash *Hash, err error) {
+    hash = NewHash()
+    copy(hash.Bytes,data[:HASH_LENGTH])
+    return hash, nil
+}
+   
+func (h *Hash) MarshalledSize() int {
+    return HASH_LENGTH
+} 
+
+// Unmarshals the Hash, and returns the incremented pointer
+func UnmarshalHash(data []byte) (newHash *Hash, newData []byte) {
+    newHash = NewHash()
+    copy(newHash.Bytes,data[:HASH_LENGTH])
+    newData = data[HASH_LENGTH:]
+    return newHash,newData
 }
 
-func (h *Hash) UnmarshalBinary(p []byte) error {
-	h.Bytes = make([]byte, p[0])
-	if p[0] > byte(0) {
-		p = p[1:]
-		copy(h.Bytes, p)
-	}
-	return nil
-}
 
-func (h *Hash) Encoding(m gocoding.Marshaller, t reflect.Type) gocoding.Encoder {
-	return func(scratch [64]byte, renderer gocoding.Renderer, value reflect.Value) {
-		hash := value.Interface().(*Hash)
-		m.MarshalObject(renderer, hash.Bytes)
-	}
-}
-
-func (h *Hash) Decoding(m gocoding.Unmarshaller, t reflect.Type) gocoding.Decoder {
-	return func(scratch [64]byte, scanner gocoding.Scanner, value reflect.Value) {
-		if value.IsNil() {
-			value.Set(reflect.ValueOf(new(Hash)))
-		}
-		hash := value.Interface().(*Hash)
-		m.UnmarshalObject(scanner, &hash.Bytes)
-	}
-}
-
-func (h *Hash) GetBytes() []byte {
-	newHash := make([]byte, HASH_LENGTH)
-	copy(newHash, h.Bytes)
-
-	return newHash
-}
-
-// SetBytes sets the bytes which represent the hash.  An error is returned if
-// the number of bytes passed in is not HASH_LENGTH.
-func (hash *Hash) SetBytes(newHash []byte) error {
-	nhlen := len(newHash)
-	if nhlen != HASH_LENGTH {
-		return fmt.Errorf("invalid sha length of %v, want %v", nhlen, HASH_LENGTH)
-	}
-
-	hash.Bytes = make([]byte, HASH_LENGTH)
-	copy(hash.Bytes, newHash)
-	return nil
-}
 
 // NewShaHash returns a new ShaHash from a byte slice.  An error is returned if
 // the number of bytes passed in is not HASH_LENGTH.
 func NewShaHash(newHash []byte) (*Hash, error) {
-	var sh Hash
+/*********** This makes no sense TODO *****************	var sh Hash
 	err := sh.SetBytes(newHash)
 	if err != nil {
 		return nil, err
 	}
 	return &sh, err
+**/
+    return Sha(newHash), nil
+    
 }
 
 func Sha(p []byte) (h *Hash) {
@@ -140,18 +109,9 @@ func HexToHash(hexStr string) (h *Hash, err error) {
 	return h, err
 }
 
-// String returns the ShaHash in the standard bitcoin big-endian form.
-func (h *Hash) BTCString() string {
-	hashstr := ""
-	hash := h.Bytes
-	for i := range hash {
-		hashstr += fmt.Sprintf("%02x", hash[HASH_LENGTH-1-i])
-	}
 
-	return hashstr
-}
-
-// Compare two Hashes
+// Compare two Hashes.  If either or both Hash is nil, then they
+// are not considered equal. (Not sure about that decision...)
 func (a *Hash) IsSameAs(b *Hash) bool {
 	if a == nil || b == nil {
 		return false

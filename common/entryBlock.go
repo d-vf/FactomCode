@@ -20,10 +20,11 @@ const (
 	Separator       = "/"
 )
 
+// Used for communication via the APIs
 type EChain struct {
-	//Marshalized
+
 	ChainID *Hash
-	// Removed the name...
+	Name       [][]byte
 	FirstEntry *Entry
 
 	//Not Marshalized
@@ -55,7 +56,6 @@ type EBInfo struct {
 
 type EBlockHeader struct {
 	Version    byte
-	NetworkID  uint32
 	ChainID    *Hash
 	BodyMR     *Hash
 	PrevKeyMR  *Hash
@@ -83,122 +83,61 @@ func (e *EBEntry) EncodableFields() map[string]reflect.Value {
 }
 
 func (e *EBEntry) MarshalBinary() ([]byte, error) {
-	var buf bytes.Buffer
-
-	data, err := e.EntryHash.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	buf.Write(data)
-
-	return buf.Bytes(), nil
-}
-
-func (e *EBEntry) MarshalledSize() uint64 {
-	var size uint64 = 0
-
-	size += e.EntryHash.MarshalledSize()
-
-	return size
+	return e.EntryHash.Bytes, nil
 }
 
 func (e *EBEntry) UnmarshalBinary(data []byte) (err error) {
-	e.EntryHash = new(Hash)
-	e.EntryHash.UnmarshalBinary(data)
 	return nil
 }
 
 func (e *EBEntry) ShaHash() *Hash {
-	byteArray, _ := e.MarshalBinary()
-	return Sha(byteArray)
+	return Sha(e.EntryHash.Bytes)
 }
 
 func (b *EBlockHeader) MarshalBinary() (data []byte, err error) {
 	var buf bytes.Buffer
 
-	buf.Write([]byte{b.Version})
-	binary.Write(&buf, binary.BigEndian, b.NetworkID)
-	data, err = b.ChainID.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
+	buf.WriteByte(b.Version)	
+	buf.Write(b.ChainID.Bytes)
 
-	data, err = b.BodyMR.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
-
-	data, err = b.PrevKeyMR.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
-
-	data, err = b.PrevHash.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
+	buf.Write(b.BodyMR.Bytes)
+	buf.Write(b.PrevKeyMR.Bytes)
+	buf.Write(b.PrevHash.Bytes)
 
 	binary.Write(&buf, binary.BigEndian, b.EBHeight)
-
 	binary.Write(&buf, binary.BigEndian, b.DBHeight)
-
-	binary.Write(&buf, binary.BigEndian, b.StartTime)
-
 	binary.Write(&buf, binary.BigEndian, b.EntryCount)
 
 	return buf.Bytes(), err
 }
 
-func (b *EBlockHeader) MarshalledSize() uint64 {
-	var size uint64 = 0
+func (b *EBlockHeader) MarshalledSize() int {
+	var size int = 0
 
 	size += 1
 	size += 4
-	size += b.ChainID.MarshalledSize()
-	size += b.BodyMR.MarshalledSize()
-	size += b.PrevKeyMR.MarshalledSize()
-	size += b.PrevHash.MarshalledSize()
+	size += HASH_LENGTH // b.ChainID.MarshalledSize()
+	size += HASH_LENGTH // b.BodyMR.MarshalledSize()
+	size += HASH_LENGTH // b.PrevKeyMR.MarshalledSize()
+	size += HASH_LENGTH // b.PrevHash.MarshalledSize()
 	size += 4
 	size += 4
-	size += 8
 	size += 4
 
 	return size
 }
 
 func (b *EBlockHeader) UnmarshalBinary(data []byte) (err error) {
-
+fmt.Println("Here Unmarshal EBblock header")
 	b.Version, data = data[0], data[1:]
 
-	b.NetworkID, data = binary.BigEndian.Uint32(data[0:4]), data[4:]
-
-	b.ChainID = new(Hash)
-	b.ChainID.UnmarshalBinary(data)
-	data = data[b.ChainID.MarshalledSize():]
-
-	b.BodyMR = new(Hash)
-	b.BodyMR.UnmarshalBinary(data)
-	data = data[b.BodyMR.MarshalledSize():]
-
-	b.PrevKeyMR = new(Hash)
-	b.PrevKeyMR.UnmarshalBinary(data)
-	data = data[b.PrevKeyMR.MarshalledSize():]
-
-	b.PrevHash = new(Hash)
-	b.PrevHash.UnmarshalBinary(data)
-	data = data[b.PrevHash.MarshalledSize():]
-
-	b.EBHeight, data = binary.BigEndian.Uint32(data[0:4]), data[4:]
-
-	b.DBHeight, data = binary.BigEndian.Uint32(data[0:4]), data[4:]
-
-	b.StartTime, data = binary.BigEndian.Uint64(data[0:8]), data[8:]
-
+	b.ChainID,data = UnmarshalHash(data)
+	b.BodyMR,data = UnmarshalHash(data)
+	b.PrevKeyMR,data = UnmarshalHash(data)
+	b.PrevHash,data = UnmarshalHash(data)
+    
+	b.EBHeight,   data = binary.BigEndian.Uint32(data[0:4]), data[4:]
+    b.DBHeight,   data = binary.BigEndian.Uint32(data[0:4]), data[4:]
 	b.EntryCount, data = binary.BigEndian.Uint32(data[0:4]), data[4:]
 
 	return nil
@@ -317,136 +256,33 @@ func (b *EBlock) MarshalBinary() (data []byte, err error) {
 	return buf.Bytes(), err
 }
 
-func (b *EBlock) MarshalledSize() (size uint64) {
+func (b *EBlock) MarshalledSize() (size int) {
 	size += b.Header.MarshalledSize()
-	size += 8 // len(Entries) uint64
-
-	for _, ebentry := range b.EBEntries {
-		size += ebentry.MarshalledSize()
-	}
-
-	fmt.Println("block.MarshalledSize=", size)
+	size += 4 // len(Entries) uint64
+	size += len(b.EBEntries)*HASH_LENGTH
 
 	return size
 }
 
 func (b *EBlock) UnmarshalBinary(data []byte) (err error) {
-	ebh := new(EBlockHeader)
-	ebh.UnmarshalBinary(data)
-	b.Header = ebh
 
-	data = data[ebh.MarshalledSize():]
+    b.Header = new(EBlockHeader)
+	b.Header.UnmarshalBinary(data)
 
-	count, data := binary.BigEndian.Uint64(data[0:8]), data[8:]
+	data = data[b.Header.MarshalledSize():]
+
+	count, data := binary.BigEndian.Uint32(data[0:4]), data[4:]
 
 	b.EBEntries = make([]*EBEntry, count)
-	for i := uint64(0); i < count; i = i + 1 {
+	for i := uint32(0); i < count; i = i + 1 {
 		b.EBEntries[i] = new(EBEntry)
-		err = b.EBEntries[i].UnmarshalBinary(data)
-		if err != nil {
-			return
-		}
-		data = data[b.EBEntries[i].MarshalledSize():]
+		b.EBEntries[i].EntryHash, data = UnmarshalHash(data)
 	}
 
 	return nil
 }
 
-func (b *EBInfo) MarshalBinary() (data []byte, err error) {
-	var buf bytes.Buffer
 
-	data, err = b.EBHash.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
-
-	data, err = b.MerkleRoot.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
-
-	data, err = b.DBHash.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
-
-	binary.Write(&buf, binary.BigEndian, b.DBBlockNum)
-
-	data, err = b.ChainID.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
-
-	return buf.Bytes(), err
-}
-
-func (b *EBInfo) MarshalledSize() (size uint64) {
-	size += 33 //b.EBHash
-	size += 33 //b.MerkleRoot
-	size += 33 //b.FBHash
-	size += 8  //b.FBBlockNum
-	size += 33 //b.ChainID
-
-	return size
-}
-
-func (b *EBInfo) UnmarshalBinary(data []byte) (err error) {
-	b.EBHash = new(Hash)
-	b.EBHash.UnmarshalBinary(data[:33])
-
-	data = data[33:]
-	b.MerkleRoot = new(Hash)
-	b.MerkleRoot.UnmarshalBinary(data[:33])
-
-	data = data[33:]
-	b.DBHash = new(Hash)
-	b.DBHash.UnmarshalBinary(data[:33])
-
-	data = data[33:]
-	b.DBBlockNum = binary.BigEndian.Uint64(data[0:8])
-
-	data = data[8:]
-	b.ChainID = new(Hash)
-	b.ChainID.UnmarshalBinary(data[:33])
-
-	return nil
-}
-
-func (b *EChain) MarshalBinary() (data []byte, err error) {
-	var buf bytes.Buffer
-
-	data, err = b.ChainID.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(data)
-
-	if b.FirstEntry != nil {
-		data, err = b.FirstEntry.MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		buf.Write(data)
-	}
-
-	return buf.Bytes(), err
-}
-
-func (b *EChain) UnmarshalBinary(data []byte) (err error) {
-	b.ChainID = new(Hash)
-	b.ChainID.UnmarshalBinary(data[:33])
-	data = data[33:]
-
-	if len(data) > HASH_LENGTH {
-		b.FirstEntry = new(Entry)
-		b.FirstEntry.UnmarshalBinary(data)
-	}
-	return nil
-}
 
 // To decode the binary name to a string to enable internal path search in db
 // The algorithm is PathString = Hex(Name[0]) + ":" + Hex(Name[0]) + ":" + ... + Hex(Name[n])

@@ -75,7 +75,8 @@ func UnmarshalHash(data []byte) (newHash *Hash, newData []byte) {
 // NewShaHash returns a new ShaHash from a byte slice.  An error is returned if
 // the number of bytes passed in is not HASH_LENGTH.
 func NewShaHash(newHash []byte) (*Hash, error) {
-/*********** This makes no sense TODO *****************	var sh Hash
+/*********** This makes no sense TODO *****************	
+    var sh Hash
 	err := sh.SetBytes(newHash)
 	if err != nil {
 		return nil, err
